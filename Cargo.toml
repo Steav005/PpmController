@@ -1,0 +1,19 @@
+[package]
+name = "ppmcontroller"
+version = "0.1.0"
+authors = ["Autumnal <friedrich122112@googlemail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+stm32f4xx-hal = { version = "0.8.3", features = ["rt", "stm32f401", "usb_fs"] }
+cortex-m = "0.6.3"
+cortex-m-rt = { version = "0.6.12", features = ["device"] }
+cortex-m-rtic = "0.5.5"
+panic-halt = "0.2.0"
+embedded-hal = "0.2.4"
+usb-device = "0.2.5"
+nb = "1.0.0"
+
+ppm_decode = "0.1.3"
