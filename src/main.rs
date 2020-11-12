@@ -14,27 +14,24 @@ use stm32f4xx_hal::gpio::gpioa::PA0;
 use stm32f4xx_hal::gpio::{Edge, ExtiPin, Floating, Input};
 use stm32f4xx_hal::otg_fs::{UsbBusType, USB};
 use stm32f4xx_hal::prelude::*;
-//use stm32f4xx_hal::stm32;
 use core::convert::TryInto;
 use panic_halt as _;
 use stm32f4xx_hal::stm32::EXTI;
-use stm32f4xx_hal::timer;
 use usb_device::bus::UsbBusAllocator;
 use usb_device::prelude::*;
 
-type UsbPpmDevice = UsbDevice<'static, UsbBusType>;
-type UsbPpmClass = HIDClass<'static, UsbBusType>;
+type RcUsbDevice = UsbDevice<'static, UsbBusType>;
+type RcUsbClass = HIDClass<'static, UsbBusType>;
 
-pub const CORE_FREQUENCY_MHZ: u32 = 84;
-
+const CORE_FREQUENCY_MHZ: u32 = 84;
 const REPORT_PERIOD: u32 = 84_000;
 
 #[app(device = stm32f4xx_hal::stm32, peripherals = true, monotonic = rtic::cyccnt::CYCCNT)]
 const APP: () = {
     struct Resources {
         //timer: timer::Timer<stm32::TIM3>,
-        usb_device: UsbPpmDevice,
-        usb_class: UsbPpmClass,
+        usb_device: RcUsbDevice,
+        usb_class: RcUsbClass,
         ppm_parser: PpmParser,
         ppm_pin: PA0<Input<Floating>>,
 
@@ -56,7 +53,7 @@ const APP: () = {
         let _gpiob = cx.device.GPIOB.split();
         let _gpioc = cx.device.GPIOC.split();
 
-        let clocks = rcc
+        let _clocks = rcc
             .cfgr
             .use_hse(25.mhz())
             .sysclk(CORE_FREQUENCY_MHZ.mhz())
@@ -80,17 +77,13 @@ const APP: () = {
         // For USB Joystick as there is no USB Game Pad on this free ID list
         let usb_device = UsbDeviceBuilder::new(usb_bus, UsbVidPid(0x16c0, 0x27dc))
             .manufacturer("autumnal.de")
-            .product("PpmController")
+            .product("RC USB Controller")
             .serial_number(env!("CARGO_PKG_VERSION"))
             .build();
 
         //Initialize Interrupt Input
         let mut syscfg = cx.device.SYSCFG;
         let mut exti = cx.device.EXTI;
-
-        // Use timer to trigger TIM3 Interrupt every milli second
-        let mut timer = timer::Timer::tim3(cx.device.TIM3, 1.khz(), clocks);
-        timer.listen(timer::Event::TimeOut);
 
         let mut ppm_pin = gpioa.pa0.into_floating_input();
         ppm_pin.make_interrupt_source(&mut syscfg);
@@ -119,16 +112,12 @@ const APP: () = {
     }
 
     #[task(binds = EXTI0, resources = [ppm_parser, ppm_pin, t0], priority = 3)]
-    fn ppm_rise(cx: ppm_rise::Context) {
+    fn ppm_falling(cx: ppm_falling::Context) {
         cx.resources.ppm_pin.clear_interrupt_pending_bit();
 
         let ppm_parser: &mut PpmParser = cx.resources.ppm_parser;
-        //let t: i32 = rtic::Monotonic::zero().into();
-        let t = Instant::now();
-
-        let cycles = t.duration_since(*cx.resources.t0).as_cycles();
-
-        ppm_parser.handle_pulse_start(cycles / CORE_FREQUENCY_MHZ)
+        let cycles_since_start = cx.resources.t0.elapsed().as_cycles();
+        ppm_parser.handle_pulse_start(cycles_since_start / CORE_FREQUENCY_MHZ)
     }
 
     // Periodic status update to Computer (every millisecond)
@@ -145,19 +134,20 @@ const APP: () = {
             frame = parser.next_frame();
         });
 
-        let report = match frame {
-            None => return,
-            Some(frame) => frame.chan_values[0..12].try_into().unwrap(),
-        };
+        //TODO commented out
+        //let report = match frame {
+        //    None => return,
+        //    Some(frame) => frame.chan_values[0..12].try_into().unwrap(),
+        //};
 
         //Lock usb_class object and report
-        cx.resources
-            .usb_class
-            .lock(|class| class.write(&get_report(&report)));
+        //cx.resources
+        //    .usb_class
+        //    .lock(|class| class.write(&get_report(&report)));
 
         //TODO Zum Testen
         cx.resources.usb_class.lock(|class| {
-            class.write(&get_report(&[1200; 16]));
+            class.write(&get_report(&[1400; 16]));
         });
     }
 
@@ -179,6 +169,6 @@ const APP: () = {
     }
 };
 
-fn usb_poll(usb_device: &mut UsbPpmDevice, ppm_device: &mut UsbPpmClass) {
+fn usb_poll(usb_device: &mut RcUsbDevice, ppm_device: &mut RcUsbClass) {
     usb_device.poll(&mut [ppm_device]);
 }

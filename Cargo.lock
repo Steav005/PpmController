@@ -219,21 +219,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6e8df826c48b2f8e3649e7d04e0cd695a0935d336c3d3babeca4629fb7e75d7"
 
 [[package]]
-name = "ppmcontroller"
-version = "0.1.0"
-dependencies = [
- "cortex-m",
- "cortex-m-rt",
- "cortex-m-rtic",
- "embedded-hal",
- "nb 1.0.0",
- "panic-halt",
- "ppm_decode",
- "stm32f4xx-hal",
- "usb-device",
-]
-
-[[package]]
 name = "proc-macro2"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -262,6 +247,21 @@ name = "rand_core"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
+
+[[package]]
+name = "rc-usb-interface"
+version = "0.1.0"
+dependencies = [
+ "cortex-m",
+ "cortex-m-rt",
+ "cortex-m-rtic",
+ "embedded-hal",
+ "nb 1.0.0",
+ "panic-halt",
+ "ppm_decode",
+ "stm32f4xx-hal",
+ "usb-device",
+]
 
 [[package]]
 name = "rtic-core"
