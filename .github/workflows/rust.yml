@@ -18,6 +18,7 @@ jobs:
       - name: Use different Target
         uses: actions-rs/toolchain@v1
         with:
+          toolchain: stable
           target: thumbv7em-none-eabihf
           override: true
 
