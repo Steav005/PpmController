@@ -14,43 +14,47 @@ use stm32f4xx_hal::gpio::gpioa::PA0;
 use stm32f4xx_hal::gpio::{Edge, ExtiPin, Floating, Input};
 use stm32f4xx_hal::otg_fs::{UsbBusType, USB};
 use stm32f4xx_hal::prelude::*;
-use stm32f4xx_hal::stm32;
+//use stm32f4xx_hal::stm32;
+use core::convert::TryInto;
+use panic_halt as _;
 use stm32f4xx_hal::stm32::EXTI;
 use stm32f4xx_hal::timer;
 use usb_device::bus::UsbBusAllocator;
 use usb_device::prelude::*;
-use core::convert::TryInto;
-use panic_halt as _;
 
 type UsbPpmDevice = UsbDevice<'static, UsbBusType>;
 type UsbPpmClass = HIDClass<'static, UsbBusType>;
 
 pub const CORE_FREQUENCY_MHZ: u32 = 84;
 
+const REPORT_PERIOD: u32 = 84_000;
+
 #[app(device = stm32f4xx_hal::stm32, peripherals = true, monotonic = rtic::cyccnt::CYCCNT)]
 const APP: () = {
     struct Resources {
-        timer: timer::Timer<stm32::TIM3>,
+        //timer: timer::Timer<stm32::TIM3>,
         usb_device: UsbPpmDevice,
         usb_class: UsbPpmClass,
         ppm_parser: PpmParser,
         ppm_pin: PA0<Input<Floating>>,
+
         exti: EXTI,
+        t0: Instant,
     }
 
-    #[init]
-    fn init(mut c: init::Context) -> init::LateResources {
+    #[init(schedule=[report])]
+    fn init(mut cx: init::Context) -> init::LateResources {
         static mut EP_MEMORY: [u32; 1024] = [0; 1024];
         static mut USB_BUS: Option<UsbBusAllocator<UsbBusType>> = None;
 
         //Enable Time Measurement
-        c.core.DWT.enable_cycle_counter();
-        c.core.DCB.enable_trace();
+        cx.core.DCB.enable_trace();
+        cx.core.DWT.enable_cycle_counter();
 
-        let rcc = c.device.RCC.constrain();
-        let gpioa = c.device.GPIOA.split();
-        let _gpiob = c.device.GPIOB.split();
-        let _gpioc = c.device.GPIOC.split();
+        let rcc = cx.device.RCC.constrain();
+        let gpioa = cx.device.GPIOA.split();
+        let _gpiob = cx.device.GPIOB.split();
+        let _gpioc = cx.device.GPIOC.split();
 
         let clocks = rcc
             .cfgr
@@ -61,9 +65,9 @@ const APP: () = {
 
         //// USB initialization
         let usb = USB {
-            usb_global: c.device.OTG_FS_GLOBAL,
-            usb_device: c.device.OTG_FS_DEVICE,
-            usb_pwrclk: c.device.OTG_FS_PWRCLK,
+            usb_global: cx.device.OTG_FS_GLOBAL,
+            usb_device: cx.device.OTG_FS_DEVICE,
+            usb_pwrclk: cx.device.OTG_FS_PWRCLK,
             pin_dm: gpioa.pa11.into_alternate_af10(),
             pin_dp: gpioa.pa12.into_alternate_af10(),
         };
@@ -81,11 +85,11 @@ const APP: () = {
             .build();
 
         //Initialize Interrupt Input
-        let mut syscfg = c.device.SYSCFG;
-        let mut exti = c.device.EXTI;
+        let mut syscfg = cx.device.SYSCFG;
+        let mut exti = cx.device.EXTI;
 
         // Use timer to trigger TIM3 Interrupt every milli second
-        let mut timer = timer::Timer::tim3(c.device.TIM3, 1.khz(), clocks);
+        let mut timer = timer::Timer::tim3(cx.device.TIM3, 1.khz(), clocks);
         timer.listen(timer::Event::TimeOut);
 
         let mut ppm_pin = gpioa.pa0.into_floating_input();
@@ -97,50 +101,64 @@ const APP: () = {
         ppm_parser.set_channel_limits(500, 1500);
         ppm_parser.set_minimum_channels(12);
         ppm_parser.set_sync_width(4000);
+        ppm_parser.set_max_ppm_time(core::u32::MAX / CORE_FREQUENCY_MHZ);
+
+        // enqueu
+        cx.schedule
+            .report(cx.start + REPORT_PERIOD.cycles())
+            .unwrap();
 
         init::LateResources {
-            timer,
             usb_device,
             usb_class,
             exti,
             ppm_pin,
             ppm_parser,
+            t0: cx.start,
         }
     }
 
-    #[task(binds = EXTI0, resources = [ppm_parser, ppm_pin], priority = 3)]
-    fn ppm_rise(c: ppm_rise::Context) {
-        c.resources.ppm_pin.clear_interrupt_pending_bit();
+    #[task(binds = EXTI0, resources = [ppm_parser, ppm_pin, t0], priority = 3)]
+    fn ppm_rise(cx: ppm_rise::Context) {
+        cx.resources.ppm_pin.clear_interrupt_pending_bit();
 
-        let ppm_parser: &mut PpmParser = c.resources.ppm_parser;
+        let ppm_parser: &mut PpmParser = cx.resources.ppm_parser;
+        //let t: i32 = rtic::Monotonic::zero().into();
+        let t = Instant::now();
 
-        ppm_parser.handle_pulse_start(Instant::now().elapsed().as_cycles() / CORE_FREQUENCY_MHZ)
+        let cycles = t.duration_since(*cx.resources.t0).as_cycles();
+
+        ppm_parser.handle_pulse_start(cycles / CORE_FREQUENCY_MHZ)
     }
 
     // Periodic status update to Computer (every millisecond)
-    #[task(binds = TIM3, resources = [usb_class, timer, ppm_parser], priority = 1)]
-    fn report(mut c: report::Context) {
-        c.resources.timer.clear_interrupt(timer::Event::TimeOut);
+    #[task(resources = [usb_class, ppm_parser], schedule=[report], priority = 1)]
+    fn report(mut cx: report::Context) {
+        // schedule itself to keep the loop running
+        cx.schedule
+            .report(cx.scheduled + REPORT_PERIOD.cycles())
+            .unwrap();
+
         let mut frame: Option<PpmFrame> = None;
 
-        c.resources.ppm_parser.lock(|parser: &mut PpmParser| {
+        cx.resources.ppm_parser.lock(|parser: &mut PpmParser| {
             frame = parser.next_frame();
         });
 
-        let report = match frame{
+        let report = match frame {
             None => return,
             Some(frame) => frame.chan_values[0..12].try_into().unwrap(),
         };
 
         //Lock usb_class object and report
-        c.resources.usb_class.lock(|class| class.write(&get_report(&report)));
+        cx.resources
+            .usb_class
+            .lock(|class| class.write(&get_report(&report)));
 
         //TODO Zum Testen
-        //c.resources
-        //    .usb_class
-        //    .lock(|class| {
-        //        class.write(&get_report(&[1500; 16]));
-        //    });
+        cx.resources.usb_class.lock(|class| {
+            class.write(&get_report(&[1200; 16]));
+        });
     }
 
     // Global USB Interrupt (does not include Wakeup)

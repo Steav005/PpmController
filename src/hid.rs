@@ -30,8 +30,8 @@ const REPORT_DESCR: &[u8] = &[
     0x75, 0x10, //     REPORT_SIZE (16)
     0x95, 0x10, //     REPORT_COUNT (16)
     0x81, 0x02, //     INPUT (Data,Var,Abs)
-    0xC0,       //   END_COLLECTION
-    0xC0,       // END_COLLECTION
+    0xC0, //   END_COLLECTION
+    0xC0, // END_COLLECTION
 ];
 
 pub struct HIDClass<'a, B: UsbBus> {
@@ -164,7 +164,8 @@ pub fn get_report(axes: &[PpmTime; 16]) -> [u8; 32] {
 
     for (i, a) in axes.iter().enumerate() {
         let normalize = (*a as i16) - 1000;
-        report[i * 2..2 + i * 2].copy_from_slice(&normalize.to_le_bytes()[..]);
+        let index_offset = i * 2;
+        report[index_offset..2 + index_offset].copy_from_slice(&normalize.to_le_bytes()[..]);
     }
 
     report

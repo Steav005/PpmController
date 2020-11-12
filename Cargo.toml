@@ -6,6 +6,14 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.release]
+# optimize for size ('z' would optimize even more)
+#opt-level = 's'
+# link with link time optimization (lto).
+#lto = true
+# debug symbols are nice, and don't cost anything in binary size
+debug = true
+
 [dependencies]
 stm32f4xx-hal = { version = "0.8.3", features = ["rt", "stm32f401", "usb_fs"] }
 cortex-m = "0.6.3"
