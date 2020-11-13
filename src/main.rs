@@ -4,18 +4,18 @@
 
 mod hid;
 
+use core::convert::TryInto;
 use hid::*;
+use panic_halt as _;
 use ppm_decode::{PpmFrame, PpmParser};
 pub use rtic::{
     app,
     cyccnt::{Instant, U32Ext},
 };
-use stm32f4xx_hal::gpio::gpioa::PA0;
-use stm32f4xx_hal::gpio::{Edge, ExtiPin, Floating, Input};
+use stm32f4xx_hal::gpio::{gpioa::PA0, gpioc::PC13};
+use stm32f4xx_hal::gpio::{Edge, ExtiPin, Floating, Input, Output, PushPull};
 use stm32f4xx_hal::otg_fs::{UsbBusType, USB};
 use stm32f4xx_hal::prelude::*;
-use core::convert::TryInto;
-use panic_halt as _;
 use stm32f4xx_hal::stm32::EXTI;
 use usb_device::bus::UsbBusAllocator;
 use usb_device::prelude::*;
@@ -23,8 +23,8 @@ use usb_device::prelude::*;
 type RcUsbDevice = UsbDevice<'static, UsbBusType>;
 type RcUsbClass = HIDClass<'static, UsbBusType>;
 
-const CORE_FREQUENCY_MHZ: u32 = 84;
-const REPORT_PERIOD: u32 = 84_000;
+const CORE_FREQUENCY_MHZ: u32 = 42;
+const REPORT_PERIOD: u32 = 42_000;
 
 #[app(device = stm32f4xx_hal::stm32, peripherals = true, monotonic = rtic::cyccnt::CYCCNT)]
 const APP: () = {
@@ -34,9 +34,9 @@ const APP: () = {
         usb_class: RcUsbClass,
         ppm_parser: PpmParser,
         ppm_pin: PA0<Input<Floating>>,
-
+        last_frame: PpmFrame,
         exti: EXTI,
-        t0: Instant,
+        dwt: rtic::export::DWT,
     }
 
     #[init(schedule=[report])]
@@ -91,10 +91,10 @@ const APP: () = {
         ppm_pin.trigger_on_edge(&mut exti, Edge::FALLING);
 
         let mut ppm_parser = PpmParser::new();
-        ppm_parser.set_channel_limits(500, 1500);
-        ppm_parser.set_minimum_channels(12);
-        ppm_parser.set_sync_width(4000);
-        ppm_parser.set_max_ppm_time(core::u32::MAX / CORE_FREQUENCY_MHZ);
+        //ppm_parser.set_channel_limits(500, 1500);
+        //ppm_parser.set_minimum_channels(12);
+        //ppm_parser.set_sync_width(4000);
+        //ppm_parser.set_max_ppm_time(core::u32::MAX / CORE_FREQUENCY_MHZ);
 
         // enqueu
         cx.schedule
@@ -107,48 +107,51 @@ const APP: () = {
             exti,
             ppm_pin,
             ppm_parser,
-            t0: cx.start,
+            dwt: cx.core.DWT,
+            last_frame: PpmFrame {
+                chan_values: [1400; 20],
+                chan_count: 16,
+            },
         }
     }
 
-    #[task(binds = EXTI0, resources = [ppm_parser, ppm_pin, t0], priority = 3)]
+    #[task(binds = EXTI0, resources = [ppm_parser, ppm_pin, dwt], priority = 3)]
     fn ppm_falling(cx: ppm_falling::Context) {
         cx.resources.ppm_pin.clear_interrupt_pending_bit();
 
         let ppm_parser: &mut PpmParser = cx.resources.ppm_parser;
-        let cycles_since_start = cx.resources.t0.elapsed().as_cycles();
-        ppm_parser.handle_pulse_start(cycles_since_start / CORE_FREQUENCY_MHZ)
+        let cycles = cx.resources.dwt.cyccnt.read();
+        ppm_parser.handle_pulse_start(cycles / CORE_FREQUENCY_MHZ);
     }
 
     // Periodic status update to Computer (every millisecond)
-    #[task(resources = [usb_class, ppm_parser], schedule=[report], priority = 1)]
+    #[task(resources = [usb_class, ppm_parser, last_frame], schedule=[report], priority = 1)]
     fn report(mut cx: report::Context) {
         // schedule itself to keep the loop running
         cx.schedule
             .report(cx.scheduled + REPORT_PERIOD.cycles())
             .unwrap();
 
-        let mut frame: Option<PpmFrame> = None;
+        let last_frame = cx.resources.last_frame;
 
         cx.resources.ppm_parser.lock(|parser: &mut PpmParser| {
-            frame = parser.next_frame();
+            if let Some(frame) = parser.next_frame() {
+                *last_frame = frame;
+            }
         });
 
         //TODO commented out
-        //let report = match frame {
-        //    None => return,
-        //    Some(frame) => frame.chan_values[0..12].try_into().unwrap(),
-        //};
+        //cx.resources.usb_class.lock(|class| {
+        //    class.write(&get_report(&[1400; 16]));
 
         //Lock usb_class object and report
-        //cx.resources
-        //    .usb_class
-        //    .lock(|class| class.write(&get_report(&report)));
+        cx.resources.usb_class.lock(|class| {
+            class.write(&get_report(
+                &last_frame.chan_values[..16].try_into().unwrap(),
+            ))
+        });
 
         //TODO Zum Testen
-        cx.resources.usb_class.lock(|class| {
-            class.write(&get_report(&[1400; 16]));
-        });
     }
 
     // Global USB Interrupt (does not include Wakeup)

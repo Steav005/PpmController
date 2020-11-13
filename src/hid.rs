@@ -163,7 +163,7 @@ pub fn get_report(axes: &[PpmTime; 16]) -> [u8; 32] {
     let mut report = [0; 32];
 
     for (i, a) in axes.iter().enumerate() {
-        let normalize = (*a as i16) - 1000;
+        let normalize = (*a as i16) - 1500;
         let index_offset = i * 2;
         report[index_offset..2 + index_offset].copy_from_slice(&normalize.to_le_bytes()[..]);
     }
