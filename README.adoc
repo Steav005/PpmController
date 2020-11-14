@@ -1,0 +1,11 @@
+Information
+---
+
+image:https://docs.zephyrproject.org/latest/_images/Blackpill_Pinout.png[alt="Pinout"]
+
+https://docs.zephyrproject.org/latest/boards/arm/blackpill_f411ce/doc/index.html[Board Documentation^]
+
+https://www.banggood.com/STM32F401-Development-Board-STM32F401CCU6-STM32F4-Learning-Board-p-1568897.html[Buy link^]
+
+MCU: STM32F401CCU6
+
