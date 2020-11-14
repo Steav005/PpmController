@@ -1,8 +1,9 @@
 [package]
 name = "rc-usb-interface"
 version = "0.1.0"
-authors = ["Autumnal <friedrich122112@googlemail.com>"]
+authors = ["Autumnal <friedrich122112@googlemail.com>", "wucke13 <wucke13@gmail.com>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,7 +11,7 @@ edition = "2018"
 # optimize for size ('z' would optimize even more)
 #opt-level = 's'
 # link with link time optimization (lto).
-#lto = true
+lto = true
 # debug symbols are nice, and don't cost anything in binary size
 debug = true
 
@@ -23,5 +24,4 @@ panic-halt = "0.2.0"
 embedded-hal = "0.2.4"
 usb-device = "0.2.5"
 nb = "1.0.0"
-
 ppm_decode = "0.1.3"
