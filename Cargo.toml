@@ -11,7 +11,7 @@ license = "MIT OR Apache-2.0"
 # optimize for size ('z' would optimize even more)
 #opt-level = 's'
 # link with link time optimization (lto).
-lto = true
+#lto = true
 # debug symbols are nice, and don't cost anything in binary size
 debug = true
 
@@ -25,3 +25,10 @@ embedded-hal = "0.2.4"
 usb-device = "0.2.5"
 nb = "1.0.0"
 ppm_decode = "0.1.3"
+
+rtt-target = { version = "*", features = ["cortex-m"], optional = true}
+
+
+[features]
+default = [ "rtt" ]
+rtt = [ "rtt-target" ]
