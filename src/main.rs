@@ -23,8 +23,11 @@ use usb_device::prelude::*;
 type RcUsbDevice = UsbDevice<'static, UsbBusType>;
 type RcUsbClass = HIDClass<'static, UsbBusType>;
 
-const CORE_FREQUENCY_MHZ: u32 = 42;
-const REPORT_PERIOD: u32 = 42_000;
+const CORE_FREQUENCY_MHZ: u32 = 84;
+const REPORT_PERIOD: u32 = 84_000;
+
+#[cfg(feature = "rtt")]
+use rtt_target::{rprintln, rtt_init_print};
 
 #[app(device = stm32f4xx_hal::stm32, peripherals = true, monotonic = rtic::cyccnt::CYCCNT)]
 const APP: () = {
@@ -43,6 +46,9 @@ const APP: () = {
     fn init(mut cx: init::Context) -> init::LateResources {
         static mut EP_MEMORY: [u32; 1024] = [0; 1024];
         static mut USB_BUS: Option<UsbBusAllocator<UsbBusType>> = None;
+
+        #[cfg(feature = "rtt")]
+        rtt_init_print!();
 
         //Enable Time Measurement
         cx.core.DCB.enable_trace();
@@ -118,10 +124,10 @@ const APP: () = {
     #[task(binds = EXTI0, resources = [ppm_parser, ppm_pin, dwt], priority = 3)]
     fn ppm_falling(cx: ppm_falling::Context) {
         cx.resources.ppm_pin.clear_interrupt_pending_bit();
-
-        let ppm_parser: &mut PpmParser = cx.resources.ppm_parser;
         let cycles = cx.resources.dwt.cyccnt.read();
-        ppm_parser.handle_pulse_start(cycles / CORE_FREQUENCY_MHZ);
+        cx.resources
+            .ppm_parser
+            .handle_pulse_start(cycles / CORE_FREQUENCY_MHZ);
     }
 
     // Periodic status update to Computer (every millisecond)
@@ -137,6 +143,8 @@ const APP: () = {
         cx.resources.ppm_parser.lock(|parser: &mut PpmParser| {
             if let Some(frame) = parser.next_frame() {
                 *last_frame = frame;
+                #[cfg(feature = "rtt")]
+                rprintln!("{:?}", frame);
             }
         });
 
