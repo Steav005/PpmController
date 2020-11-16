@@ -148,16 +148,22 @@ const APP: () = {
             }
         });
 
+        let report = Report{
+            axes: [500; 20],
+            buttons: [true; 192],
+        };
+
         //TODO commented out
-        //cx.resources.usb_class.lock(|class| {
-        //    class.write(&get_report(&[1400; 16]));
+        cx.resources.usb_class.lock(|class| {
+            class.write(&report.get_bytes());
+        });
 
         //Lock usb_class object and report
-        cx.resources.usb_class.lock(|class| {
-            class.write(&get_report(
-                &last_frame.chan_values[..16].try_into().unwrap(),
-            ))
-        });
+        //cx.resources.usb_class.lock(|class| {
+        //    class.write(&get_report(
+        //        &last_frame.chan_values[..16].try_into().unwrap(),
+        //    ))
+        //});
 
         //TODO Zum Testen
     }
