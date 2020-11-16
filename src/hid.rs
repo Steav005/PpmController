@@ -60,7 +60,7 @@ impl<B: UsbBus> HIDClass<'_, B> {
     pub fn new(alloc: &UsbBusAllocator<B>) -> HIDClass<'_, B> {
         HIDClass {
             report_if: alloc.interface(),
-            report_ep: alloc.interrupt(64, 10),
+            report_ep: alloc.interrupt(64, 1),
         }
     }
 
