@@ -4,7 +4,6 @@
 
 mod hid;
 
-use core::convert::TryInto;
 use hid::*;
 use panic_halt as _;
 use ppm_decode::{PpmFrame, PpmParser};
@@ -12,8 +11,8 @@ pub use rtic::{
     app,
     cyccnt::{Instant, U32Ext},
 };
-use stm32f4xx_hal::gpio::{gpioa::PA0, gpioc::PC13};
-use stm32f4xx_hal::gpio::{Edge, ExtiPin, Floating, Input, Output, PushPull};
+use stm32f4xx_hal::gpio::gpioa::PA0;
+use stm32f4xx_hal::gpio::{Edge, ExtiPin, Floating, Input};
 use stm32f4xx_hal::otg_fs::{UsbBusType, USB};
 use stm32f4xx_hal::prelude::*;
 use stm32f4xx_hal::stm32::EXTI;
@@ -42,7 +41,7 @@ const APP: () = {
         dwt: rtic::export::DWT,
     }
 
-    #[init(schedule=[report])]
+    #[init(schedule = [report])]
     fn init(mut cx: init::Context) -> init::LateResources {
         static mut EP_MEMORY: [u32; 1024] = [0; 1024];
         static mut USB_BUS: Option<UsbBusAllocator<UsbBusType>> = None;
@@ -96,7 +95,7 @@ const APP: () = {
         ppm_pin.enable_interrupt(&mut exti);
         ppm_pin.trigger_on_edge(&mut exti, Edge::FALLING);
 
-        let mut ppm_parser = PpmParser::new();
+        let ppm_parser = PpmParser::new();
         //ppm_parser.set_channel_limits(500, 1500);
         //ppm_parser.set_minimum_channels(12);
         //ppm_parser.set_sync_width(4000);
@@ -131,7 +130,7 @@ const APP: () = {
     }
 
     // Periodic status update to Computer (every millisecond)
-    #[task(resources = [usb_class, ppm_parser, last_frame], schedule=[report], priority = 1)]
+    #[task(resources = [usb_class, ppm_parser, last_frame], schedule = [report], priority = 1)]
     fn report(mut cx: report::Context) {
         // schedule itself to keep the loop running
         cx.schedule
@@ -148,24 +147,28 @@ const APP: () = {
             }
         });
 
-        let report = Report{
-            axes: [500; 20],
-            buttons: [true; 192],
-        };
-
         //TODO commented out
-        cx.resources.usb_class.lock(|class| {
-            class.write(&report.get_bytes());
-        });
-
-        //Lock usb_class object and report
+        //let report = Report{
+        //    axes: [500; 20],
+        //    buttons: [true; 192],
+        //};
         //cx.resources.usb_class.lock(|class| {
-        //    class.write(&get_report(
-        //        &last_frame.chan_values[..16].try_into().unwrap(),
-        //    ))
+        //    class.write(&report.get_bytes());
         //});
 
-        //TODO Zum Testen
+        //TODO Comment in
+        //Lock usb_class object and report
+        //TODO Build real report
+        let mut report = Report {
+            axes: [0; 20],
+            buttons: [false; 192],
+        };
+        for (i, frame) in last_frame.chan_values.iter().enumerate().take(16){
+            report.axes[i] = Report::axis_value_from_ppm_time(*frame);
+        }
+        cx.resources.usb_class.lock(|class| {
+            class.write(&report.get_bytes())
+        });
     }
 
     // Global USB Interrupt (does not include Wakeup)

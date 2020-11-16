@@ -1,5 +1,5 @@
-use ppm_decode::PpmTime;
 #[allow(unused)]
+use ppm_decode::PpmTime;
 use usb_device::class_prelude::*;
 use usb_device::Result;
 
@@ -182,7 +182,7 @@ pub struct Report{
 }
 
 impl Report{
-    pub fn normalize_axis(axis: PpmTime) -> i16{
+    pub fn axis_value_from_ppm_time(axis: PpmTime) -> i16{
         (axis as i16) - 1500
     }
 
@@ -191,9 +191,8 @@ impl Report{
 
         //Axes
         for (i, a) in self.axes.iter().enumerate() {
-            let normalize = (*a as i16) - 1500;
             let index_offset = i * 2;
-            report[index_offset..2 + index_offset].copy_from_slice(&normalize.to_le_bytes()[..]);
+            report[index_offset..2 + index_offset].copy_from_slice(&(*a).to_le_bytes()[..]);
         };
 
         //Buttons
