@@ -19,6 +19,7 @@ use stm32f4xx_hal::prelude::*;
 use stm32f4xx_hal::stm32::EXTI;
 use usb_device::bus::UsbBusAllocator;
 use usb_device::prelude::*;
+use core::convert::TryInto;
 
 type RcUsbDevice = UsbDevice<'static, UsbBusType>;
 type RcUsbClass = HIDClass<'static, UsbBusType>;
@@ -151,7 +152,7 @@ const APP: () = {
             }
         });
 
-        let report = JoystickState::new(last_frame.chan_values);
+        let report = JoystickState::from_ppm_time(last_frame.chan_values[0..9].try_into().unwrap());
 
         unsafe {
             cx.resources.usb_class.lock(|class| {

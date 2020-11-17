@@ -11,46 +11,46 @@ enum ButtonState {
 ///
 /// Standard AETR mapping
 #[repr(packed)]
+#[derive(Copy, Clone, Debug)]
 pub struct JoystickState {
-    /// Aileron, Channel 1
-    pub x: i16,
+    /// Left Stick (Axis 0 and 1)
+    pub left_x: i16,
+    pub left_y: i16,
 
-    /// Elevator, Channel 2
-    pub y: i16,
+    /// Right Stick (Axis 2 and 3)
+    pub right_x: i16,
+    pub right_y: i16,
 
-    /// Throttle, Channel 3
-    pub throttle: i16,
+    /// Dials
+    pub dial_1: i16,
+    pub dial_2: i16,
 
-    /// Rudder, Channel 4
-    pub z: i16,
-
-    /// Channel 5
-    pub c5: i16,
-
-    /// Channel 6
-    pub c6: i16,
-
-    /// Slider
-    pub slider: [i16; 14],
+    /// Buttons
+    pub buttons: u8,
 }
 
 impl JoystickState {
-    pub fn new(axes: [PpmTime; 20]) -> Self{
+    pub fn from_ppm_time(axes: [PpmTime; 9]) -> Self{
         const PPM_TIME_OFFSET: i16 = -1500;
 
-        let mut slider: [i16; 14] = Default::default();
-        for (i, s) in axes[6..].iter().enumerate().take(14){
-            slider[i] = (*s as i16) - PPM_TIME_OFFSET;
+        let mut buttons: u8 = 0;
+        for (i, button_signal) in axes[6..].iter().enumerate().take(3){
+            let button_signal = (*button_signal as i16) + PPM_TIME_OFFSET;
+            if button_signal > 250{
+                buttons |= 1 << (2 * i)
+            } else if button_signal < -250{
+                buttons |= 1 << ((2 * i) + 1)
+            }
         }
 
         JoystickState{
-            x: (axes[0] as i16) + PPM_TIME_OFFSET,
-            y: (axes[1] as i16) + PPM_TIME_OFFSET,
-            z: (axes[2] as i16) + PPM_TIME_OFFSET,
-            throttle: (axes[3] as i16) + PPM_TIME_OFFSET,
-            c5: (axes[4] as i16) + PPM_TIME_OFFSET,
-            c6: (axes[5] as i16) + PPM_TIME_OFFSET,
-            slider,
+            left_x: (axes[0] as i16) + PPM_TIME_OFFSET,
+            left_y: (axes[1] as i16) + PPM_TIME_OFFSET,
+            right_x: (axes[2] as i16) + PPM_TIME_OFFSET,
+            right_y: (axes[3] as i16) + PPM_TIME_OFFSET,
+            dial_1: (axes[4] as i16) + PPM_TIME_OFFSET,
+            dial_2: (axes[5] as i16) + PPM_TIME_OFFSET,
+            buttons,
         }
     }
 
