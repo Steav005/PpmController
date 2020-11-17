@@ -1,3 +1,6 @@
+use ppm_decode::PpmTime;
+
+#[allow(dead_code)]
 enum ButtonState {
     Up,
     Neutral,
@@ -8,34 +11,53 @@ enum ButtonState {
 ///
 /// Standard AETR mapping
 #[repr(packed)]
-struct JoystickState {
+pub struct JoystickState {
     /// Aileron, Channel 1
-    x: i16,
+    pub x: i16,
 
     /// Elevator, Channel 2
-    y: i16,
+    pub y: i16,
 
     /// Throttle, Channel 3
-    throttle: i16,
+    pub throttle: i16,
 
     /// Rudder, Channel 4
-    z: i16,
+    pub z: i16,
 
     /// Channel 5
-    c5: i16,
+    pub c5: i16,
 
     /// Channel 6
-    c6: i16,
+    pub c6: i16,
 
     /// Slider
-    slider: [u16; 14],
+    pub slider: [i16; 14],
 }
 
 impl JoystickState {
+    pub fn new(axes: [PpmTime; 20]) -> Self{
+        const PPM_TIME_OFFSET: i16 = -1500;
+
+        let mut slider: [i16; 14] = Default::default();
+        for (i, s) in axes[6..].iter().enumerate().take(14){
+            slider[i] = (*s as i16) - PPM_TIME_OFFSET;
+        }
+
+        JoystickState{
+            x: (axes[0] as i16) + PPM_TIME_OFFSET,
+            y: (axes[1] as i16) + PPM_TIME_OFFSET,
+            z: (axes[2] as i16) + PPM_TIME_OFFSET,
+            throttle: (axes[3] as i16) + PPM_TIME_OFFSET,
+            c5: (axes[4] as i16) + PPM_TIME_OFFSET,
+            c6: (axes[5] as i16) + PPM_TIME_OFFSET,
+            slider,
+        }
+    }
+
     // this is actually safe, as long as `JoystickState` is packed. More information:
     // https://stackoverflow.com/questions/28127165/how-to-convert-struct-to-u8
     /// Return a byte slice to this struct
-    unsafe fn as_u8_slice(&self) -> &[u8] {
+    pub unsafe fn as_u8_slice(&self) -> &[u8] {
         ::core::slice::from_raw_parts(
             (self as *const Self) as *const u8,
             ::core::mem::size_of::<Self>(),

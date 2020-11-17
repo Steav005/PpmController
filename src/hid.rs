@@ -7,9 +7,10 @@ const REPORT_DESCR: &[u8] = &[
     0x05, 0x01, // USAGE_PAGE (Generic Desktop)
     0x09, 0x04, // USAGE (Joystick)
     0xA1, 0x01, // COLLECTION (Application)
+
+    //Axes SECTION
     0x09, 0x01, //     USAGE (Pointer)
     0xA1, 0x00, //     COLLECTION (Physical)
-    //Axes SECTION
     0x05, 0x01, //       USAGE_PAGE (Generic Desktop)
     0x09, 0x30, //       USAGE (X)
     0x09, 0x31, //       USAGE (Y)
@@ -45,16 +46,15 @@ const REPORT_DESCR: &[u8] = &[
     0x95, 0x0E, //     REPORT_COUNT (14)
     0x81, 0x02, //     INPUT (Data,Var,Abs)
 
-    //BUTTON SECTION
-    0x05, 0x09, //    USAGE_PAGE (Button)
-    0x19, 0x01, //    USAGE_MINIMUM (Button 1)
-    0x29, 0xC0, //    USAGE_MAXIMUM (Button 192)
-    0x15, 0x00, //    LOGICAL_MINIMUM (0)
-    0x25, 0x01, //    LOGICAL_MAXIMUM (1)
-    0x75, 0x01, //    REPORT_SIZE (1)
-    0x95, 0xC0, //    REPORT_COUNT (192)
-    0x81, 0x02, //    INPUT (Data,Var,Abs)
-
+    //BUTTON SECTION not present in JoystickState
+    //0x05, 0x09, //    USAGE_PAGE (Button)
+    //0x19, 0x01, //    USAGE_MINIMUM (Button 1)
+    //0x29, 0xC0, //    USAGE_MAXIMUM (Button 192)
+    //0x15, 0x00, //    LOGICAL_MINIMUM (0)
+    //0x25, 0x01, //    LOGICAL_MAXIMUM (1)
+    //0x75, 0x01, //    REPORT_SIZE (1)
+    //0x95, 0xC0, //    REPORT_COUNT (192)
+    //0x81, 0x02, //    INPUT (Data,Var,Abs)
 
     0xC0, // END_COLLECTION
 ];
@@ -181,37 +181,5 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
                 xfer.reject().ok();
             }
         }
-    }
-}
-
-pub struct Report{
-    pub axes: [i16; 20],
-    pub buttons: [bool; 192],
-}
-
-impl Report{
-    pub fn axis_value_from_ppm_time(axis: PpmTime) -> i16{
-        (axis as i16) - 1500
-    }
-
-    pub fn get_bytes(&self) -> [u8; 64]{
-        let mut report = [0; 64];
-
-        //Axes
-        for (i, a) in self.axes.iter().enumerate() {
-            let index_offset = i * 2;
-            report[index_offset..2 + index_offset].copy_from_slice(&(*a).to_le_bytes()[..]);
-        };
-
-        //Buttons
-        for i in 0..24{
-            for b in 0..8{
-                if self.buttons[(i * 8) + b]{
-                    report[40 + i] |= 1 << (7 - b);
-                }
-            }
-        }
-
-        report
     }
 }
