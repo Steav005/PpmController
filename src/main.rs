@@ -1,8 +1,8 @@
-#![deny(unsafe_code)]
 #![no_main]
 #![no_std]
 
 mod hid;
+mod types;
 
 use hid::*;
 #[cfg(not(feature = "rtt"))]
