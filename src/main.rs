@@ -5,6 +5,7 @@
 mod hid;
 
 use hid::*;
+#[cfg(not(feature = "rtt"))]
 use panic_halt as _;
 use ppm_decode::{PpmFrame, PpmParser};
 pub use rtic::{
@@ -27,6 +28,8 @@ const REPORT_PERIOD: u32 = 84_000;
 
 #[cfg(feature = "rtt")]
 use rtt_target::{rprintln, rtt_init_print};
+#[cfg(feature = "rtt")]
+use core::panic::PanicInfo;
 
 #[app(device = stm32f4xx_hal::stm32, peripherals = true, monotonic = rtic::cyccnt::CYCCNT)]
 const APP: () = {
@@ -148,27 +151,27 @@ const APP: () = {
         });
 
         //TODO commented out
-        //let report = Report{
-        //    axes: [500; 20],
-        //    buttons: [true; 192],
-        //};
-        //cx.resources.usb_class.lock(|class| {
-        //    class.write(&report.get_bytes());
-        //});
+        let report = Report{
+            axes: [500; 20],
+            buttons: [true; 192],
+        };
+        cx.resources.usb_class.lock(|class| {
+            class.write(&report.get_bytes());
+        });
 
         //TODO Comment in
         //Lock usb_class object and report
         //TODO Build real report
-        let mut report = Report {
-            axes: [0; 20],
-            buttons: [false; 192],
-        };
-        for (i, frame) in last_frame.chan_values.iter().enumerate().take(16){
-            report.axes[i] = Report::axis_value_from_ppm_time(*frame);
-        }
-        cx.resources.usb_class.lock(|class| {
-            class.write(&report.get_bytes())
-        });
+        //let mut report = Report {
+        //    axes: [0; 20],
+        //    buttons: [false; 192],
+        //};
+        //for (i, frame) in last_frame.chan_values.iter().enumerate().take(16){
+        //    report.axes[i] = Report::axis_value_from_ppm_time(*frame);
+        //}
+        //cx.resources.usb_class.lock(|class| {
+        //    class.write(&report.get_bytes())
+        //});
     }
 
     // Global USB Interrupt (does not include Wakeup)
@@ -191,4 +194,14 @@ const APP: () = {
 
 fn usb_poll(usb_device: &mut RcUsbDevice, ppm_device: &mut RcUsbClass) {
     usb_device.poll(&mut [ppm_device]);
+}
+
+
+
+#[cfg(feature = "rtt")]
+#[inline(never)]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    rprintln!("{}", info);
+    loop {} // You might need a compiler fence in here.
 }
