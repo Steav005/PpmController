@@ -1,36 +1,47 @@
-use ppm_decode::PpmTime;
 #[allow(unused)]
+use ppm_decode::PpmTime;
 use usb_device::class_prelude::*;
 use usb_device::Result;
 
 const REPORT_DESCR: &[u8] = &[
     0x05, 0x01, // USAGE_PAGE (Generic Desktop)
-    0x09, 0x05, // USAGE (Game Pad)
+    0x09, 0x04, // USAGE (Joystick)
     0xA1, 0x01, // COLLECTION (Application)
-    0xA1, 0x00, //   COLLECTION (Physical)
-    0x05, 0x01, //    USAGE_PAGE (Generic Desktop)
-    0x09, 0x30, //    USAGE_MINIMUM (X)
-    0x09, 0x31, //    USAGE_MINIMUM (Y)
-    0x09, 0x32, //    USAGE_MINIMUM (Z)
-    0x09, 0x33, //    USAGE_MINIMUM (Rx)
-    0x09, 0x34, //    USAGE_MINIMUM (Ry)
-    0x09, 0x35, //    USAGE_MINIMUM (Rz)
-    0x09, 0x36, //    USAGE_MINIMUM (Slider)
-    0x09, 0x37, //    USAGE_MINIMUM (Dial)
-    0x09, 0x38, //    USAGE_MINIMUM (Wheel)
-    0x09, 0x40, //    USAGE_MINIMUM (Vx)
-    0x09, 0x41, //    USAGE_MINIMUM (Vy)
-    0x09, 0x42, //    USAGE_MINIMUM (Vz)
-    0x09, 0x43, //    USAGE_MINIMUM (Vbrx)
-    0x09, 0x44, //    USAGE_MINIMUM (Vbry)
-    0x09, 0x45, //    USAGE_MINIMUM (Vbrz)
-    0x09, 0x46, //    USAGE_MINIMUM (Vn)
+    //Axes SECTION
+    0x09, 0x01, //     USAGE (Pointer)
+    0xA1, 0x00, //     COLLECTION (Physical)
+    0x05, 0x01, //       USAGE_PAGE (Generic Desktop)
+    0x09, 0x30, //       USAGE (X)
+    0x09, 0x31, //       USAGE (Y)
+    0x09, 0x32, //       USAGE (Z)
+    0x09, 0x33, //       USAGE (Rx)
     0x16, 0x0C, 0xFE, // LOGICAL_MINIMUM (-500)
     0x26, 0xF4, 0x01, // LOGICAL_MAXIMUM (+500)
+    0x75, 0x10, //       REPORT_SIZE (16)
+    0x95, 0x04, //       REPORT_COUNT (4)
+    0x81, 0x02, //       INPUT (Data,Var,Abs)
+    0xC0, //     END_COLLECTION
+    //Dials SECTION
+    0x09, 0x36, //     USAGE (Dial)
+    0x09, 0x37, //     USAGE (Dial)
+    0x16, 0x0C, 0xFE, //LOGICAL_MINIMUM (-500)
+    0x26, 0xF4, 0x01, //LOGICAL_MAXIMUM (+500)
     0x75, 0x10, //     REPORT_SIZE (16)
-    0x95, 0x10, //     REPORT_COUNT (16)
+    0x95, 0x02, //     REPORT_COUNT (2)
     0x81, 0x02, //     INPUT (Data,Var,Abs)
-    0xC0, //   END_COLLECTION
+    //BUTTON SECTION
+    0x05, 0x09, //    USAGE_PAGE (Button)
+    0x19, 0x01, //    USAGE_MINIMUM (Button 1)
+    0x29, 0x06, //    USAGE_MAXIMUM (Button 6)
+    0x15, 0x00, //    LOGICAL_MINIMUM (0)
+    0x25, 0x01, //    LOGICAL_MAXIMUM (1)
+    0x75, 0x01, //    REPORT_SIZE (1)
+    0x95, 0x06, //    REPORT_COUNT (6)
+    0x81, 0x02, //    INPUT (Data,Var,Abs)
+    //PADDING
+    0x95, 0x01, //    REPORT_COUNT (1)
+    0x75, 0x02, //    REPORT_SIZE (2)
+    0x81, 0x03, //    INPUT (Cnst,Var,Abs)
     0xC0, // END_COLLECTION
 ];
 
@@ -43,7 +54,7 @@ impl<B: UsbBus> HIDClass<'_, B> {
     pub fn new(alloc: &UsbBusAllocator<B>) -> HIDClass<'_, B> {
         HIDClass {
             report_if: alloc.interface(),
-            report_ep: alloc.interrupt(32, 10),
+            report_ep: alloc.interrupt(13, 1),
         }
     }
 
@@ -157,16 +168,4 @@ impl<B: UsbBus> UsbClass<B> for HIDClass<'_, B> {
             }
         }
     }
-}
-
-pub fn get_report(axes: &[PpmTime; 16]) -> [u8; 32] {
-    let mut report = [0; 32];
-
-    for (i, a) in axes.iter().enumerate() {
-        let normalize = (*a as i16) - 1500;
-        let index_offset = i * 2;
-        report[index_offset..2 + index_offset].copy_from_slice(&normalize.to_le_bytes()[..]);
-    }
-
-    report
 }
