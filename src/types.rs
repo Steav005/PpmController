@@ -30,20 +30,20 @@ pub struct JoystickState {
 }
 
 impl JoystickState {
-    pub fn from_ppm_time(axes: [PpmTime; 9]) -> Self{
+    pub fn from_ppm_time(axes: [PpmTime; 9]) -> Self {
         const PPM_TIME_OFFSET: i16 = -1500;
 
         let mut buttons: u8 = 0;
-        for (i, button_signal) in axes[6..].iter().enumerate().take(3){
+        for (i, button_signal) in axes[6..].iter().enumerate().take(3) {
             let button_signal = (*button_signal as i16) + PPM_TIME_OFFSET;
-            if button_signal > 250{
+            if button_signal > 250 {
                 buttons |= 1 << (2 * i)
-            } else if button_signal < -250{
+            } else if button_signal < -250 {
                 buttons |= 1 << ((2 * i) + 1)
             }
         }
 
-        JoystickState{
+        JoystickState {
             left_x: (axes[0] as i16) + PPM_TIME_OFFSET,
             left_y: (axes[1] as i16) + PPM_TIME_OFFSET,
             right_x: (axes[2] as i16) + PPM_TIME_OFFSET,

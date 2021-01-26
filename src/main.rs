@@ -4,6 +4,7 @@
 mod hid;
 mod types;
 
+use core::convert::TryInto;
 use hid::*;
 #[cfg(not(feature = "rtt"))]
 use panic_halt as _;
@@ -12,14 +13,14 @@ pub use rtic::{
     app,
     cyccnt::{Instant, U32Ext},
 };
-use stm32f4xx_hal::gpio::gpioa::PA0;
+use stm32f4xx_hal::gpio::gpioa::PA;
+use stm32f4xx_hal::gpio::gpiob::PB;
 use stm32f4xx_hal::gpio::{Edge, ExtiPin, Floating, Input};
 use stm32f4xx_hal::otg_fs::{UsbBusType, USB};
 use stm32f4xx_hal::prelude::*;
 use stm32f4xx_hal::stm32::EXTI;
 use usb_device::bus::UsbBusAllocator;
 use usb_device::prelude::*;
-use core::convert::TryInto;
 
 type RcUsbDevice = UsbDevice<'static, UsbBusType>;
 type RcUsbClass = HIDClass<'static, UsbBusType>;
@@ -27,11 +28,11 @@ type RcUsbClass = HIDClass<'static, UsbBusType>;
 const CORE_FREQUENCY_MHZ: u32 = 84;
 const REPORT_PERIOD: u32 = 84_000;
 
+use crate::types::JoystickState;
 #[cfg(feature = "rtt")]
 use core::panic::PanicInfo;
 #[cfg(feature = "rtt")]
 use rtt_target::{rprintln, rtt_init_print};
-use crate::types::JoystickState;
 
 #[app(device = stm32f4xx_hal::stm32, peripherals = true, monotonic = rtic::cyccnt::CYCCNT)]
 const APP: () = {
@@ -40,7 +41,8 @@ const APP: () = {
         usb_device: RcUsbDevice,
         usb_class: RcUsbClass,
         ppm_parser: PpmParser,
-        ppm_pin: PA0<Input<Floating>>,
+        ppm_pin: PB<Input<Floating>>,
+        //ppm_pin: PA<Input<Floating>>,
         last_frame: PpmFrame,
         exti: EXTI,
         dwt: rtic::export::DWT,
@@ -58,9 +60,10 @@ const APP: () = {
         cx.core.DCB.enable_trace();
         cx.core.DWT.enable_cycle_counter();
 
+        cx.device.RCC.apb2enr.write(|w| w.syscfgen().enabled());
         let rcc = cx.device.RCC.constrain();
         let gpioa = cx.device.GPIOA.split();
-        let _gpiob = cx.device.GPIOB.split();
+        let gpiob = cx.device.GPIOB.split();
         let _gpioc = cx.device.GPIOC.split();
 
         let _clocks = rcc
@@ -95,7 +98,8 @@ const APP: () = {
         let mut syscfg = cx.device.SYSCFG;
         let mut exti = cx.device.EXTI;
 
-        let mut ppm_pin = gpioa.pa0.into_floating_input();
+        let mut ppm_pin = gpiob.pb9.into_floating_input().downgrade();
+        //let mut ppm_pin = gpioa.pa0.into_floating_input().downgrade();
         ppm_pin.make_interrupt_source(&mut syscfg);
         ppm_pin.enable_interrupt(&mut exti);
         ppm_pin.trigger_on_edge(&mut exti, Edge::FALLING);
@@ -111,6 +115,9 @@ const APP: () = {
             .report(cx.start + REPORT_PERIOD.cycles())
             .unwrap();
 
+        #[cfg(feature = "rtt")]
+        rprintln!("init done");
+
         init::LateResources {
             usb_device,
             usb_class,
@@ -119,16 +126,19 @@ const APP: () = {
             ppm_parser,
             dwt: cx.core.DWT,
             last_frame: PpmFrame {
-                chan_values: [1400; 20],
+                chan_values: [1500; 20],
                 chan_count: 16,
             },
         }
     }
 
-    #[task(binds = EXTI0, resources = [ppm_parser, ppm_pin, dwt], priority = 3)]
+    #[task(binds = EXTI9_5, resources = [ppm_parser, ppm_pin, dwt], priority = 3)]
     fn ppm_falling(cx: ppm_falling::Context) {
         cx.resources.ppm_pin.clear_interrupt_pending_bit();
         let cycles = cx.resources.dwt.cyccnt.read();
+        #[cfg(feature = "rtt")]
+        rprintln!("interrupt fired");
+
         cx.resources
             .ppm_parser
             .handle_pulse_start(cycles / CORE_FREQUENCY_MHZ);
@@ -155,9 +165,9 @@ const APP: () = {
         let report = JoystickState::from_ppm_time(last_frame.chan_values[0..9].try_into().unwrap());
 
         unsafe {
-            cx.resources.usb_class.lock(|class| {
-                class.write(report.as_u8_slice())
-            });
+            cx.resources
+                .usb_class
+                .lock(|class| class.write(report.as_u8_slice()));
         }
     }
 
